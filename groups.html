@@ -1,0 +1,414 @@
+<!DOCTYPE html>  
+<html>  
+	<head>  
+		<meta charset="iso-8859-1">
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<meta http-equiv="content-type" content="text/html; charset=iso-8859-1"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="author" content="Valentin Schwind">  
+		<link rel="stylesheet" href="css/fullcalendar.css" />  
+		<link rel="stylesheet" href="css/bootstrap.css" />  
+		<link rel="stylesheet" href="css/style.css" />  
+		<link rel="stylesheet" href="css/font-awesome.min.css" />  
+		<link rel="stylesheet" href="css/datatables.min.css" />  
+		
+		<script src="js/jquery-3.6.1.min.js"></script>  
+		<script src="js/jquery-ui.min.js"></script>  
+		<script src="js/moment-with-locales.js"></script>   
+		<script src="js/fullcalendar.min.js"></script> 
+		<script src="js/bootstrap.min.js"></script> 
+		<script src="js/jquery.tabledit.min.js"></script> 
+		<script src="js/jquery.dataTables.min.js"></script> 
+		
+		<link rel="stylesheet" type="text/css" href="./css/style.css">   
+	</head>  
+	<body>    
+		<div id="mainFrame" class="vertical-center">
+			<div class="whiteBox container rounded mt-5 mb-5">  	
+				<div class="row">
+					<div class="col mt-1 ">
+						<div class="float-end"><a href="https://hci-studies.org"><img src="img/frankfurtlogo.png" class="float-end mr-3" width="140px" alt="Logo"></a></div>
+					</div>
+				</div>
+				<div class="row">
+					<div class="col mt-1 ">
+						<h1>Editing</h1>
+						<p>No access to students. Copy <a href="https://hci-studies.org/lab-booking-calendar/calendar.php">this link</a> to add the ICS calendar to Outlook.</p></p>
+					</div>
+				</div> 
+				<div class="row">
+					<div class="col mt-1 ">
+						<h3>Groups</h3>
+					</div>   
+				</div>  
+				<div class="row">
+					<div class="col mt-1 ">
+						<div class="table-responsive">
+							<table class="table" id="groupTable"> 
+							</table>
+						</div>
+					</div>   
+				</div>    
+				<div class="row">
+					<div class="col mt-1 d-flex justify-content-end  bd-highlight"> 
+						<button id="addGroupBtn" type="button" class="btn btn-primary float-right"  for-table='groupTable'>Add Group</button> 
+					</div> 
+				</div> 
+				<hr />
+				<div class="row">
+					<div class="col mt-1 ">
+						<h3>Workstations</h3>
+					</div>   
+				</div>  
+				<div class="row">
+					<div class="col mt-1 ">
+						<div class="table-responsive">
+							<table class="table" id="workstationsTable"> 
+							</table>
+						</div>
+					</div>   
+				</div>    
+				<div class="row">
+					<div class="col mt-1 d-flex justify-content-end bd-highlight">  
+						<button id="addWorkstationBtn" type="button" class="btn btn-primary float-right"  for-table='workstationTable'>Add Workstation</button> 
+					</div> 
+				</div>  
+				<hr />
+				<div class="row">
+					<div class="col mt-1 ">
+						<h3>Events</h3>
+					</div>   
+				</div>  
+				<div class="row">
+					<div class="col mt-1 ">
+						<div class="table-responsive">
+							<table class="table" id="eventsTable"> 
+							</table>
+						</div>
+					</div>   
+				</div>    
+				<div class="row mt-3 mb-3">
+					<div class="col mt-1 d-flex justify-content-end  bd-highlight">
+						<button id="connectBtn" type="button" class="btn btn-primary float-left" data-toggle="modal" data-target="#loginModal" data-whatever="@mdo">Connect</button> 
+						<a href="https://hci-studies.org/lab-booking-calendar/" class="btn btn-primary  float-left" role="button" aria-pressed="true">Edit in Calendar</a> 
+					</div> 
+				</div> 
+			</div>  
+		</div>  
+		<div class="modal fade" id="loginModal" tabindex="-1" role="dialog" aria-labelledby="loginModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false" >
+			<div class="modal-dialog modal-dialog-centered" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="loginModalLabel">Login</h5> 
+					</div>
+					<div class="modal-body">
+						<form id="inputForm">
+							<div class="form-group">
+								<label for="recipient-name" class="col-form-label">Enter Password:</label>
+								<input type="password" class="form-control" name="password"  aria-hidden="true">
+							</div> 
+						</form>
+					</div>
+					<div class="modal-footer"> 
+						<button type="button" id="loginBtn" class="btn btn-primary">Login</button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script> 
+			$(document).ready(function() { 
+				var debug = false;
+				
+				$('#loginModal').on('show.bs.modal', function (event) {
+					var button = $(event.relatedTarget); 
+					var recipient = button.data('whatever'); 
+					var modal = $(this);
+					modal.find('.modal-title').text('Booking Backend Login required');
+					modal.find('.modal-body input').val(recipient);
+				});
+				
+				$('#loginModal').modal('show');
+				$('#mainFrame').hide();  
+				
+				$("input[name='password']").keypress(function(e) {
+					if (e.which == '13') {
+						event.preventDefault();
+						$('#loginBtn').click();
+					}
+				});
+				
+				$('#inputForm').submit(function(event){ 
+					event.preventDefault();
+					$('#loginBtn').click(); 
+				});
+				
+				$('#loginBtn').click(function(){ 
+					$.ajax({
+						type: "POST",
+						url: 'php/grant_access.php?page=backend',
+						data: $('#inputForm').serialize(),  
+						success: function (response) {  
+							if(response.trim() == "Granted" || debug == true){ 
+								$('#loginModal').modal('hide'); 
+								$('#mainFrame').show(); 
+								$('#connectBtn').hide();
+								$('#addGroupBtn').show();
+								$('#addWorkstationBtn').show(); 
+								
+								$.get( "php/get_htmltable.php", { table: "groups" } ).done(function( data ) {
+									$('#groupTable').html(data);
+									$('#groupTable').Tabledit({
+										url: 'php/update_groups.php',
+										deleteButton: true,
+										saveButton: true,
+										autoFocus: true, 
+										restoreButton: false,
+										eventType: 'dblclick',
+										buttons: {
+											edit: {
+												class: 'btn btn-sm btn-default',
+												html: 'Edit',
+												action: 'edit'
+											},
+											delete: {
+												class: 'btn btn-sm btn-default',
+												html: 'Delete',
+												action: 'delete'
+											},
+											save: {
+												class: 'btn btn-sm btn-success',
+												html: 'Save'
+											},
+											restore: {
+												class: 'btn btn-sm btn-warning',
+												html: 'Restore',
+												action: 'restore'
+											},
+											confirm: {
+												class: 'btn btn-sm btn-danger',
+												html: 'Confirm'
+											}
+										},
+										columns: {
+											identifier: [0, 'id'],
+											editable: [[1, 'name'], [2, 'members'], [3, 'email'], [4, 'course'], [5, 'semester'], [6, 'pin']]
+										},
+										onDraw: function() {
+											console.log('onDraw()');
+										},
+										onSuccess: function(data, textStatus, jqXHR) {
+											console.log('onSuccess(data, textStatus, jqXHR)');
+											console.log(data);
+											console.log(textStatus);
+											console.log(jqXHR);
+										},
+										onFail: function(jqXHR, textStatus, errorThrown) {
+											console.log('onFail(jqXHR, textStatus, errorThrown)');
+											console.log(jqXHR);
+											console.log(textStatus);
+											console.log(errorThrown);
+										},
+										onAlways: function() {
+											console.log('onAlways()');
+										},
+										onAjax: function(action, serialize) {
+											console.log('onAjax(action, serialize)');
+											console.log(action);
+											console.log(serialize);
+										}
+									});
+									
+									$("#addGroupBtn").click(function() { 
+										var tableditTableName = '#groupTable'; 
+										var newID = parseInt($(tableditTableName + " tr:last").attr("id")) + 1; 
+										var clone = $(tableditTableName + " tr:last").clone(); 
+										$(".tabledit-data span", clone).text(""); 
+										$(".tabledit-data input", clone).val(""); 
+										clone.appendTo(tableditTableName); 
+										$(tableditTableName + " tr:last").attr("id", newID); 
+										$(tableditTableName + " tr:last td .tabledit-span.tabledit-identifier").text(newID); 
+										$(tableditTableName + " tr:last td .tabledit-input.tabledit-identifier").val(newID);
+										$(tableditTableName + " input:not([type=hidden]), select").val("");   //wipe out the inputs.
+										$(tableditTableName + " tbody td:last .tabledit-edit-button").trigger("click"); 
+										
+										$.ajax({
+											url: 'php/add_row.php',
+											data: {id: newID, table: "groups"}, 
+											type: 'POST',
+											success: function (response) { 
+												console.log(response)
+											}
+											
+										});
+									});
+									
+								}); 
+								
+								$.get( "php/get_htmltable.php", { table: "workstations" } ).done(function( data ) {
+									console.log( data  );
+									$('#workstationsTable').html(data); 
+									$('#workstationsTable').Tabledit({
+										url: 'php/update_workstations.php',
+										deleteButton: true,
+										saveButton: true,
+										autoFocus: true, 
+										restoreButton: false,
+										eventType: 'dblclick',
+										buttons: {
+											edit: {
+												class: 'btn btn-sm btn-default',
+												html: 'Edit',
+												action: 'edit'
+											},
+											delete: {
+												class: 'btn btn-sm btn-default',
+												html: 'Delete',
+												action: 'delete'
+											},
+											save: {
+												class: 'btn btn-sm btn-success',
+												html: 'Save'
+											},
+											restore: {
+												class: 'btn btn-sm btn-warning',
+												html: 'Restore',
+												action: 'restore'
+											},
+											confirm: {
+												class: 'btn btn-sm btn-danger',
+												html: 'Confirm'
+											}
+										},
+										columns: {
+											identifier: [0, 'id'],
+											editable: [[1, 'name'], [2, 'room'], [3, 'seats']]
+										},
+										onDraw: function() {
+											console.log('onDraw()');
+										},
+										onSuccess: function(data, textStatus, jqXHR) {
+											console.log('onSuccess(data, textStatus, jqXHR)');
+											console.log(data);
+											console.log(textStatus);
+											console.log(jqXHR);
+										},
+										onFail: function(jqXHR, textStatus, errorThrown) {
+											console.log('onFail(jqXHR, textStatus, errorThrown)');
+											console.log(jqXHR);
+											console.log(textStatus);
+											console.log(errorThrown);
+										},
+										onAlways: function() {
+											console.log('onAlways()');
+										},
+										onAjax: function(action, serialize) {
+											console.log('onAjax(action, serialize)');
+											console.log(action);
+											console.log(serialize);
+										}
+									});
+									
+									$("#addWorkstationBtn").click(function() { 
+										var tableditTableName = '#workstationsTable'; 
+										var newID = parseInt($(tableditTableName + " tr:last").attr("id")) + 1; 
+										var clone = $(tableditTableName + " tr:last").clone(); 
+										$(".tabledit-data span", clone).text(""); 
+										$(".tabledit-data input", clone).val(""); 
+										clone.appendTo(tableditTableName); 
+										$(tableditTableName + " tr:last").attr("id", newID); 
+										$(tableditTableName + " tr:last td .tabledit-span.tabledit-identifier").text(newID); 
+										$(tableditTableName + " tr:last td .tabledit-input.tabledit-identifier").val(newID);
+										$(tableditTableName + " input:not([type=hidden]), select").val("");   //wipe out the inputs.
+										$(tableditTableName + " tbody td:last .tabledit-edit-button").trigger("click"); 
+										
+										$.ajax({
+											url: 'php/add_row.php',
+											data: {id: newID, table: "workstations"}, 
+											type: 'POST',
+											success: function (response) { 
+												console.log(response)
+											}
+											
+										});
+									});
+									
+								}); 
+								
+								$.get( "php/get_htmltable.php", { table: "events" } ).done(function( data ) {
+									console.log( data  );
+									$('#eventsTable').html(data); 
+									/*
+										$('#eventsTable').Tabledit({
+										url: 'php/update_groups.php',
+										deleteButton: true,
+										saveButton: true,
+										autoFocus: true, 
+										restoreButton: false,
+										eventType: 'dblclick',
+										buttons: {
+										edit: {
+										class: 'btn btn-sm btn-default',
+										html: 'Edit',
+										action: 'edit'
+										},
+										delete: {
+										class: 'btn btn-sm btn-default',
+										html: 'Delete',
+										action: 'delete'
+										},
+										save: {
+										class: 'btn btn-sm btn-success',
+										html: 'Save'
+										},
+										restore: {
+										class: 'btn btn-sm btn-warning',
+										html: 'Restore',
+										action: 'restore'
+										},
+										confirm: {
+										class: 'btn btn-sm btn-danger',
+										html: 'Confirm'
+										}
+										},
+										columns: {
+										identifier: [0, 'id'],
+										editable: [[1, 'id'], [2, 'workstation'], [3, 'className'], [4, 'room'], [5, 'groupid'], [6, 'title'], [7, 'start'], [6, 'end']]
+										},
+										onDraw: function() {
+										console.log('onDraw()');
+										},
+										onSuccess: function(data, textStatus, jqXHR) {
+										console.log('onSuccess(data, textStatus, jqXHR)');
+										console.log(data);
+										console.log(textStatus);
+										console.log(jqXHR);
+										},
+										onFail: function(jqXHR, textStatus, errorThrown) {
+										console.log('onFail(jqXHR, textStatus, errorThrown)');
+										console.log(jqXHR);
+										console.log(textStatus);
+										console.log(errorThrown);
+										},
+										onAlways: function() {
+										console.log('onAlways()');
+										},
+										onAjax: function(action, serialize) {
+										console.log('onAjax(action, serialize)');
+										console.log(action);
+										console.log(serialize);
+										}
+									});*/
+								}); 
+								} else {
+								alert("Wrong password entered. Response '" + response + "' Data: '" + $('#inputForm').serialize() + "'");
+							}
+						}
+					}); 
+				});
+				
+				if(debug) $('#loginBtn').click(); 
+			}); 
+		</script> 
+	</body>   
+</html>  

@@ -1,0 +1,621 @@
+<!DOCTYPE html>  
+<html>  
+	<head>  
+		<meta charset="iso-8859-1">
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<meta http-equiv="content-type" content="text/html; charset=iso-8859-1"/> 
+		<meta name="author" content="Valentin Schwind"> 
+		
+		<link rel="stylesheet" href="css/fullcalendar.css" />  
+		<link rel="stylesheet" href="css/bootstrap.css" />  
+		<link rel="stylesheet" href="css/style.css" />  
+		
+		<script src="js/jquery-3.6.1.min.js"></script>  
+		<script src="js/jquery-ui.min.js"></script>  
+		<script src="js/moment.min.js"></script>   
+		<script src="js/fullcalendar.min.js"></script> 
+		<script src='js/fullcalendar-moment-plugin.min.js'></script>   
+		<script src="js/bootstrap.bundle.min.js"></script>   
+		<title>Mixed Reality Lab Booking Calendar</title>
+	</head>  
+	<body>    
+		<div id="mainFrame" class="vertical-center">
+			<div id="mainBox" class="whiteBox container rounded">  	
+				<div class="row">
+					<div class="col mt-1 mb-1 ">
+						<div class="float-end"><a href="https://hci-studies.org"><img src="img/frankfurtlogo.png" class="float-end mr-3" width="140px" alt="Logo"></a></div>
+					</div>
+				</div>
+				<hr />
+				<div class="row">
+					<div class="col mt-1 mb-1 ">
+						<h1>Mixed Reality Lab Booking Calendar</h1>
+					<p>This is the lab booking calendar of the <a href="https://www.frankfurt-university.de/mixed-reality-lab">Mixed Reality Lab</a>. Drag and drop your project on a free time slot. You can book individual workstations, however, user studies block the whole room. Click on the items to delete existing bookings. You can easily resize booked slots using drag and drop at the bottom of each block.</p><div class="col mb-2 "></p> </div>
+				</div>
+			</div>
+			<hr />
+			<div class="row  mt-3">
+				<div class="col-4 "><span id="selectGroupText">Booking a user study or development time?</span><br /></div>
+				<div class="col-8">
+					<div class="form-check form-check-inline">
+						<input class="form-check-input" type="radio" name="selectStudyRadioBtn" id="selectDevRadio" value="dev">
+						<label class="form-check-label" for="selectDevRadio">
+							development &nbsp;&nbsp;<span class="dev">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+						</label>
+					</div>
+					<div class="form-check form-check-inline">
+						<input class="form-check-input" type="radio" name="selectStudyRadioBtn" id="selectStudyRadio" value="study" >
+						<label class="form-check-label" for="selectStudyRadio">
+							user study &nbsp;&nbsp;<span class="study">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+						</label>
+					</div>
+				</div>
+			</div>  
+			<div class="row  mt-3">
+				<div class="col-4  mt-2">
+					<span id="selectGroupText">Drag your research project into a free slot:</span><br />
+				</div>
+				<div class="col-8">
+					<div id='external-events'><div id='external-events-list'></div></div>
+				</div>
+			</div> 
+			<div class="row  mt-3  mb-3">
+				<nav class="mt-4 " style="background-color: #efefef">
+					<div class="nav nav-tabs" id="nav-tab" role="tablist" class="mt-2" > 
+					</div>
+				</nav>
+				<div class="tab-content mt-3" id="nav-tabContent" > </div>
+			</div>    
+		</div>  
+	</div>  
+	<div class="modal fade" id="loginModal" tabindex="-1" role="dialog" aria-labelledby="loginModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false" >
+		<div class="modal-dialog modal-dialog-centered" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="loginModalLabel">Login</h5> 
+				</div>
+				<div class="modal-body">
+					<form id="inputForm">
+						<div class="form-group">
+							<label for="recipient-name" class="col-form-label">Enter Password:</label>
+							<input id="password" type="password" class="form-control" name="password"  aria-hidden="true">
+							<div class="modal-footer"> 
+								<button type="button" value="Login" id="loginBtn" class="btn btn-primary">Login</button>
+							</div> 
+						</div> 
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+	
+	<script> 
+		var debug = false;
+		var needSiteAccess = false; 
+		var pinFound = false;
+		var yourPin = "";
+		var tooltipInstance = null;
+		var currentTab = 1;
+		
+		$(document).ready(function() {
+			$('#loginModal').on('show.bs.modal', function (event) {
+				var button = $(event.relatedTarget); 
+				var recipient = button.data('whatever'); 
+				var modal = $(this);
+				modal.find('.modal-title').text('Booking Login required');
+				modal.find('.modal-body input').val(recipient);
+			});
+			
+			$('#loginModal').modal('show');
+			
+			$('#mainFrame').hide();   
+			
+			$("input[name='password']").keypress(function(e) {
+				if (e.which == '13') {
+					event.preventDefault();
+					$('#loginBtn').click();
+				}
+			});
+			
+			$('#inputForm').submit(function(event){ 
+				event.preventDefault();
+				$('#loginBtn').click(); 
+			});
+			
+			$('#loginBtn').click(function(){ 
+				$.ajax({
+					type: "POST",
+					url: 'php/grant_access.php?page=frontend',
+					data: $('#inputForm').serialize(),  
+					success: function (response) {  
+						if(response.trim() == "Granted" || debug == true){ 
+							$('#loginModal').modal('hide'); 
+							$('#mainFrame').show();  
+							$.get( "php/get_json.php", { table: "groups" }).done(function( data ) {  
+								var groupsHTML = "";  
+								groups = JSON.parse(data);
+								$.each(groups, function (group_id) {  
+									groupsHTML += '<div id=group-' + groups[group_id].id + '" class="fc-event ui-widget-content" data-bs-toggle="tooltip"  data-bs-placement="top" title="' + groups[group_id].email + '" data-groupid="' + groups[group_id].id + '" data-course="' + groups[group_id].course + '" data-semester="' + groups[group_id].semester + '" data-members="' + groups[group_id].members + '" data-email="' + groups[group_id].email + '" data-pin="' + groups[group_id].pin + '">' + groups[group_id].name + '</div>';
+								});
+								
+								$("#external-events-list").html(groupsHTML);  
+								
+								$('input[type=radio][name=selectStudyRadioBtn]').change(function() {
+									if($(this).val() == "study"){
+										$("#external-events-list .fc-event").addClass("study");
+										$("#external-events-list .fc-event").removeClass("dev");
+										}else if($(this).val() == "dev"){
+										$("#external-events-list .fc-event").removeClass("study");
+										$("#external-events-list .fc-event").addClass("dev");
+									}  
+								});
+								$('#selectDevRadio').click();
+								
+								new FullCalendar.Draggable($('#external-events-list')[0], {
+									itemSelector: '.fc-event',
+									revert: true,
+									revertDuration: 5,  // 
+									eventData: function(data) {   
+										return {
+											title: data.innerText,
+											duration: '01:00', 
+											startTime: "8:00:00",
+											backgroundColor: $('#external-events-list .fc-event').css("background-color"),
+											borderColor: $('#external-events-list .fc-event').css("background-color"),
+											textColor: $('#external-events-list .fc-event').css("color"),
+											classNames: [$("input[name='selectStudyRadioBtn']:checked").val()],
+											extendedProps: {
+												id: $(data)[0].dataset.id,
+												members: $(data)[0].dataset.members,
+												room: $(data)[0].dataset.room,
+												groupid: $(data)[0].dataset.groupid, 
+												pin: $(data)[0].dataset.pin,
+												course: $(data)[0].dataset.course,
+												semester: $(data)[0].dataset.semester,
+												email: $(data)[0].dataset.email
+											}
+										}
+									}
+								}); 
+								
+								if(needSiteAccess) {
+									var enteredPin = prompt("Enter your PIN",""); 
+									for(var group in groups) {  
+										if(groups[group].pin == enteredPin){
+											yourPin = enteredPin;
+											break;
+										}
+									}
+									if(yourPin == ""){
+										alert("Access denied");
+										$('#mainBox').html('<div class="row"><div class="col mt-1 mb-1 "><div class="float-end"><a href="https://hci-studies.org"><img src="img/frankfurtlogo.png" class="float-end mr-3" width="140px" alt="Logo"></a></div></div></div><div class="row"><div class="col mt-1 mb-1 "><h1>Mixed Reality Lab Booking Calendar</h1><p>Enter a correct PIN for booking</p><div class="col mb-2 "></p> 					</div></div>');  
+										return;
+									}   
+								}
+								
+								var calendars = []; 
+								var eventPairs = [];
+								var blockDragFlag = false;
+								
+								$.get( "php/get_json.php", { table: "workstations" }).done(function( data ) {    
+								
+									data = JSON.parse(data);
+									var calenderNavTabHTML = "";
+									var calenderInnerTabHTML = ""; 
+									
+									$.each(data, function (workstation_id) {   
+										calenderInnerTabHTML += '<div class="tab-pane fade ' + (data[workstation_id].id == 1 ? "show active" : "") + '" id="nav-button-' + data[workstation_id].id + '" role="tabpanel" aria-labelledby="nav-button-' + data[workstation_id].id + '-tab"><div id="calendar-wrap-' + data[workstation_id].id + '"><div id="calendar-' + data[workstation_id].id + '" class="calendar"></div></div></div>';
+										calenderNavTabHTML+='<button class="nav-link ' + (data[workstation_id].id == 1 ? "active" : "") + '" id="nav-button-' + data[workstation_id].id + '-tab" data-bs-toggle="tab" data-bs-target="#nav-button-' + data[workstation_id].id + '" type="button" role="tab" value="' + data[workstation_id].id + '" aria-controls="nav-button-' + data[workstation_id].id + '" aria-selected="true">' + data[workstation_id].room  + ' (' + data[workstation_id].name + ')</button> ';
+									});
+									
+									$("#nav-tab").html(calenderNavTabHTML);
+									$("#nav-tabContent").html(calenderInnerTabHTML); 
+									$("#nav-button-" + (currentTab) + "-tab").click();  
+									
+									$('button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+										currentTab = e.target.id.split("-")[2]; 
+									})
+									 
+									$.each(data, function (workstation_id) {  
+										var calendar = new FullCalendar.Calendar($('#calendar-' + (data[workstation_id].id))[0], {
+											initialView: 'timeGridWeek',
+											nowIndicator: true,
+											droppable: true, 
+											editable: true,
+											weekends: false,
+											forceEventDuration: true,
+											slotMinTime: "9:00:00",
+											slotMaxTime: "23:00:00",
+											slotDuration: '00:30:00',
+											longPressDelay: 500,
+											eventLongPressDelay: 500,
+											selectLongPressDelay: 500,
+											eventTimeFormat: 'HH:mm',  
+											allDaySlot: false,   
+											navLinks: true, 
+											weekNumbers: true, 
+											slotLabelFormat: {
+												hour: '2-digit',
+												minute: '2-digit',
+												hour12: false,
+												meridiem: false
+											},
+											headerToolbar: {
+												left: 'prev,next today',
+												center: 'title',
+												right: 'dayGridMonth,timeGridWeek,timeGridDay'
+											},  
+											views: {
+												dayGrid: { 
+													editable: false,
+													droppable: false,
+													slotDuration: '10:00:00',
+													slotMinTime: "6:00:00"
+												} 
+											},
+											titleFormat: {
+												month: 'short',
+												year: 'numeric',
+												day: 'numeric',
+												weekday: 'long'
+											},
+											events: "php/get_events.php?workstation=" + data[workstation_id].name + "&room=" + data[workstation_id].room, 
+											eventDidMount: function(args) { 
+											}, 
+											eventMouseEnter: function( args ) {  
+												tooltipInstance = new bootstrap.Tooltip(args.el, {
+													title: groups[args.event.extendedProps.groupid - 1].course + "/" + groups[args.event.extendedProps.groupid - 1].semester + ": " + groups[args.event.extendedProps.groupid -1 ].members + "<br />Mail: " + groups[args.event.extendedProps.groupid - 1].email,
+													html: true,
+													placement: "top",
+													trigger: "manual",
+													container: "body"
+												});
+												
+												tooltipInstance.show(); 
+											},
+											eventMouseLeave: function( args ) { 
+												if (tooltipInstance) { tooltipInstance.dispose(); tooltipInstance = null; }
+											},
+											drop: function(drop) {  
+												console.log("DROP"); 
+											}, 
+											eventAdd: function(args) {  
+												var start = moment(args.event.start).format("Y-MM-DD HH:mm:ss");  
+												var end = moment(args.event.end).format("Y-MM-DD HH:mm:ss");
+												
+												if(typeof args.event.extendedProps.workstationID !== 'undefined' || args.event.extendedProps.workstationID !== null){ 
+													$.ajax({  
+														url: 'php/add_events.php',  
+														data: 'title=' + args.event.title + '&start=' + start +'&end='+ end + '&workstation=' + data[args.event.extendedProps.workstationID - 1].name + "&room=" + data[args.event.extendedProps.workstationID - 1].room + "&pin=" + args.event.extendedProps.pin + "&className=" + args.event.classNames[0] + "&groupid=" + args.event.extendedProps.groupid,
+														type: "POST",  
+														success: function(json) { 										
+															args.event.setProp( "id", JSON.parse(json).id )
+															console.log("ANOTHER EVENT RECEIVED " + args.event.id);    
+														}  
+													});
+												}
+											},  
+											eventRemove: function(args) {  
+												$.ajax({  
+													type: "POST",  
+													url: "php/delete_event.php",  
+													data: "&id=" + args.event.id,  
+													success: function(json) { 
+														console.log("REMOVE"); 
+													}  
+												}); 
+												if (tooltipInstance) { tooltipInstance.dispose(); tooltipInstance = null; }
+											},
+											eventChange: function(args) {
+												if(blockDragFlag) {
+													blockDragFlag = false;
+													return;
+												}
+												var start = moment(args.event.start).format("Y-MM-DD HH:mm:ss");  
+												var end = moment(args.event.end).format("Y-MM-DD HH:mm:ss"); 
+												var theID = (typeof args.event.extendedProps.workstationID === 'undefined' || args.event.extendedProps.workstationID === null) ? workstation_id : args.event.extendedProps.workstationID - 1;
+												
+												$.ajax({  
+													url: 'php/update_events.php',  
+													data: 'title=' + args.event.title + '&start=' + start + '&end=' + end + '&id=' + args.event.id + '&workstation=' + data[theID].name + "&room=" + data[theID].room  + "&pin=" + args.event.extendedProps.pin  + "&className=" + args.event.classNames[0] + "&groupid=" + args.event.extendedProps.groupid, 
+													type: "POST",  
+													success: function(json) { 
+														console.log("SUCCESS CHANGED");
+														console.log(json); 
+													}  ,  
+													error: function(json) { 
+														console.log("ERROR CHANGED");
+														console.log(json); 
+													}  
+												});    
+												if (tooltipInstance) { tooltipInstance.dispose(); tooltipInstance = null; }
+												
+											},
+											eventsSet: function(events) { 
+												/*
+												if(blockDragFlag) {
+													blockDragFlag = false;
+													return;
+												}
+												for(var event in events){
+													var start = moment(events[event].start).format("Y-MM-DD HH:mm:ss");  
+													var end = moment(events[event].end).format("Y-MM-DD HH:mm:ss");
+													
+													$.ajax({  
+														url: 'php/update_events.php',  
+														data: 'title=' + events[event].title + '&start=' + start + '&end=' + end + '&id=' + event.id + '&workstation=' + data[workstation_id].name + "&room=" + data[workstation_id].room  + "&pin=" + events[event].extendedProps.pin  + "&className=" + events[event].classNames[0] + "&groupid=" + events[event].extendedProps.groupid, 
+														type: "POST",  
+														success: function(json) {
+															console.log("SET");
+															console.log(json); 
+															console.log("event.id" + event.id); 
+														}  
+													});  
+												} */
+											},
+											eventReceive: function(args) {  
+												
+												if(!debug && yourPin == "" || (yourPin != args.event.extendedProps.pin)) yourPin = prompt("Enter your PIN:","");
+												
+												if(debug || (yourPin == args.event.extendedProps.pin)) {  
+													var start = moment(args.event.start).format("Y-MM-DD HH:mm:ss");  
+													var end = moment(args.event.end).format("Y-MM-DD HH:mm:ss");   
+													
+													if(args.event.classNames[0] == "study"){   
+														var filteredWorkstations = data.filter(function(item){ return item.room == data[workstation_id].room; }).filter(function(item){ return item.id != data[workstation_id].id; }); 
+														for (var workstation in filteredWorkstations) {    
+															var checkCalID = filteredWorkstations[workstation].id - 1;
+															for (var ev in calendars[checkCalID].getEvents()) {   
+																if(moment(calendars[checkCalID].getEvents()[ev].start).valueOf() < moment(args.event.end).valueOf() && 
+																moment(calendars[checkCalID].getEvents()[ev].end).valueOf() > moment(args.event.start).valueOf()){
+																	alert("A user study needs the entire space. Please ensure free time slots for all workstations."); 
+																	args.revert(); 
+																	return;
+																} 											
+															} 
+														} 
+														
+														filteredWorkstations = data.filter(function(item){ return item.room == data[workstation_id].room; }); 
+														for (var workstation in filteredWorkstations) {
+															if(workstation_id != filteredWorkstations[workstation].id - 1){
+																var eventCopy = JSON.parse(JSON.stringify(args.event));
+																eventCopy.extendedProps.workstationID = filteredWorkstations[workstation].id;
+																calendars[filteredWorkstations[workstation].id - 1].addEvent(eventCopy);  															
+															}
+														}
+													}
+													$.ajax({  
+														url: 'php/add_events.php',  
+														data: 'title=' + args.event.title + '&start=' + start +'&end='+ end + '&workstation=' + data[workstation_id].name + "&room=" + data[workstation_id].room + "&pin=" + args.event.extendedProps.pin + "&className=" + args.event.classNames[0] + "&groupid=" + args.event.extendedProps.groupid,
+														type: "POST",  
+														success: function(json) { 										
+															args.event.setProp( "id", JSON.parse(json).id )
+															console.log("SINGLE EVENT RECEIVED " + args.event.id);    
+														}  
+													});
+													
+												} else { 
+													alert("Wrong PIN. Booking will not saved."); 
+													yourPin = "";
+													args.revert();
+												}
+												if (tooltipInstance) { tooltipInstance.dispose(); tooltipInstance = null; }
+											}, 
+											eventDragStart: function(args) {
+												console.log("DRAG START");
+												if (tooltipInstance) {
+													tooltipInstance.dispose();
+													tooltipInstance = null;
+												}
+												var start = moment(args.event.start).format("Y-MM-DD HH:mm:ss");  
+												var end = moment(args.event.end).format("Y-MM-DD HH:mm:ss"); 
+												
+												eventPairs = [];
+												if(args.event.classNames[0] == "study"){   
+													var filteredWorkstations = data.filter(function(item){ return item.room == data[workstation_id].room; }).filter(function(item){ return item.id != data[workstation_id].id; });
+													for (var workstation in filteredWorkstations) {    
+														var checkCalID = filteredWorkstations[workstation].id - 1;
+														for (var ev in calendars[checkCalID].getEvents()) {    
+															if(moment(calendars[checkCalID].getEvents()[ev].start).valueOf() == moment(args.event.start).valueOf() &&
+															moment(calendars[checkCalID].getEvents()[ev].end).valueOf() == moment(args.event.end).valueOf() && 
+															calendars[checkCalID].getEvents()[ev].title == args.event.title ){ 
+																console.log("duplicates found " + args.event.id);
+																eventPairs.push({"theOtherEv": calendars[checkCalID].getEvents()[ev].id, "theOtherCal": checkCalID});												
+															} 											
+														} 
+													}
+												}
+												if (tooltipInstance) { tooltipInstance.dispose(); tooltipInstance = null; }
+											},
+											eventClick: function(args) {
+												console.log("CLICK"); 
+												if(!debug && yourPin == "" || (yourPin != args.event.extendedProps.pin)) yourPin = prompt("Enter your PIN:","");
+												
+												if(debug || (yourPin == args.event.extendedProps.pin)) { 
+													var decision = confirm("Do you really want to do that?"); 
+													if (decision) {  
+														args.event.remove();
+														
+														if(args.event.classNames[0] == "study"){   
+															var filteredWorkstations = data.filter(function(item){ return item.room == data[workstation_id].room; }).filter(function(item){ return item.id != data[workstation_id].id; });
+															for (var workstation in filteredWorkstations) {    
+																var checkCalID = filteredWorkstations[workstation].id - 1;
+																for (var ev in calendars[checkCalID].getEvents()) {    
+																	if(moment(calendars[checkCalID].getEvents()[ev].start).valueOf() == moment(args.event.start).valueOf() && 
+																	calendars[checkCalID].getEvents()[ev].title == args.event.title){ 
+																		calendars[checkCalID].getEvents()[ev].remove();
+																	} 											
+																} 
+															}
+														}
+													}
+													} else { 
+													alert("Wrong PIN. Booking not deleted.");  
+													yourPin = "";
+												}
+												if (tooltipInstance) { tooltipInstance.dispose(); tooltipInstance = null; }
+											},
+											eventDrop: function(args) {    
+												console.log("DROP DRAG"); 
+												if(!debug && yourPin == "" || (yourPin != args.event.extendedProps.pin)) yourPin = prompt("Enter your PIN:","");
+												
+												if(debug || (yourPin == args.event.extendedProps.pin)) { 
+													var start = moment(args.event.start).format("Y-MM-DD HH:mm:ss");  
+													var end = moment(args.event.end).format("Y-MM-DD HH:mm:ss");   
+													
+													if(args.event.classNames[0] == "study"){ 
+														var filteredWorkstations = data.filter(function(item){ return item.room == data[workstation_id].room; }).filter(function(item){ return item.id != data[workstation_id].id; });
+														
+														for (var pair in eventPairs) {    
+															for (var workstation in filteredWorkstations) {  
+																if(eventPairs[pair].theOtherCal != filteredWorkstations[workstation].id) {
+																	console.log("duplicates found"); 
+																	if(moment(calendars[eventPairs[pair].theOtherCal].getEventById(eventPairs[pair].theOtherEv).start).valueOf() >= moment(args.event.end  ).valueOf() &&
+																	moment(calendars[eventPairs[pair].theOtherCal].getEventById(eventPairs[pair].theOtherEv).end  ).valueOf() <= moment(args.event.start).valueOf()) {
+																		alert("A user study needs the entire space. Please ensure free time slots for all workstations."); 
+																		args.revert(); 
+																		return;
+																	}
+																}
+															} 
+														}  
+													}
+													for (var pair in eventPairs) {  
+														calendars[eventPairs[pair].theOtherCal].getEventById(eventPairs[pair].theOtherEv).setDates(args.event.start,args.event.end);
+													}   
+												} else { 
+													alert("Wrong PIN. Booking will not saved."); 
+													yourPin = "";
+													args.revert();
+												}
+												eventPairs = [];
+												if (tooltipInstance) { tooltipInstance.dispose(); tooltipInstance = null; }
+											},
+											eventResize: function(args) { 
+												blockDragFlag = true;
+												if(!debug && yourPin == "" || (yourPin != args.event.extendedProps.pin)) yourPin = prompt("Enter your PIN:","");
+												
+												if(debug || (yourPin == args.event.extendedProps.pin)) { 
+													var start = moment(args.event.start).format("Y-MM-DD HH:mm:ss");  
+													var end = moment(args.event.end).format("Y-MM-DD HH:mm:ss");    
+													eventPairs = [];
+													 
+													if(args.event.classNames[0] == "study"){  
+														var filteredWorkstations = data.filter(function(item){ return item.room == data[workstation_id].room; }).filter(function(item){ return item.id != data[workstation_id].id; });  
+														
+														for (var workstation in filteredWorkstations) {    
+															var checkCalID = filteredWorkstations[workstation].id - 1;
+															for (var ev in calendars[checkCalID].getEvents()) {    
+																if(moment(calendars[checkCalID].getEvents()[ev].start).valueOf() != moment(args.event.start).valueOf() ){
+																	if(moment(calendars[checkCalID].getEvents()[ev].start).valueOf() >= moment(args.event.start).valueOf() ){
+																		if(moment(calendars[checkCalID].getEvents()[ev].start).valueOf() <= moment(args.event.end).valueOf()){ 
+																			alert("A user study needs the entire space. Please ensure free time slots for all workstations."); 
+																			args.revert(); 
+																			return;
+																		} 	  
+																	}
+																}
+															} 
+														}   
+														for (var workstation in filteredWorkstations) {    
+															var checkCalID = filteredWorkstations[workstation].id - 1;
+															for (var ev in calendars[checkCalID].getEvents()) {    
+																if(moment(calendars[checkCalID].getEvents()[ev].start).valueOf() == moment(args.event.start).valueOf() && 
+																calendars[checkCalID].getEvents()[ev].title == args.event.title ){ 
+																	console.log("event duplicates found " + args.event.id + " and " + calendars[checkCalID].getEvents()[ev].id + " in calendar " + checkCalID);
+																	eventPairs.push({"theOtherEv": calendars[checkCalID].getEvents()[ev].id, "theOtherCal": checkCalID});												
+																} 	
+															} 
+														}   
+														var currentCalendar = data.filter(function(item){ return item.room == data[workstation_id].room; }).filter(function(item){ return item.id == data[workstation_id].id; });
+														calendars[(currentCalendar[0].id - 1)].getEventById(args.event.id).setDates(args.event.start, args.event.end);
+														
+														for (var pair in eventPairs) {   
+															console.log("saving duplicates " + args.event.id + " and in calendar " + (currentCalendar[0].id - 1) + " and " + eventPairs[pair].theOtherEv + " in calendar " + eventPairs[pair].theOtherCal);
+															calendars[eventPairs[pair].theOtherCal].getEventById(eventPairs[pair].theOtherEv).setDates(args.event.start, args.event.end);
+														}   
+													}		 
+													
+													$.ajax({
+														url: 'php/update_events.php',  
+														data: 'title=' + args.event.title + '&start=' + start + '&end=' + end + '&id=' + args.event.id + '&workstation=' + data[workstation_id].name + "&room=" + data[workstation_id].room  + "&pin=" + args.event.extendedProps.pin  + "&className=" + args.event.classNames[0] + "&groupid=" +  args.event.extendedProps.groupid, 
+														type: "POST",  
+														success: function(json) {
+															console.log("RESIZING EVENT " + args.event.id); 
+														}  
+													});  
+													
+													eventPairs = []; 
+												} else { 
+													alert("Wrong PIN. Booking will not saved."); 
+													yourPin = "";
+													args.revert();
+												}
+												if (tooltipInstance) { tooltipInstance.dispose(); tooltipInstance = null; }
+												
+											},
+											eventOverlap: function(stillEvent, movingEvent) {
+												console.log("OVERLAP"); 
+												return stillEvent.allDay && movingEvent.allDay;
+											}
+										});
+										calendars.push(calendar);
+									});
+									
+									$('button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {  
+										calendars[$(this).val() - 1].render();
+									});
+									
+									$.each(data, function (workstation_id) {  
+										calendars[workstation_id].render();
+									}); 
+									
+									$('.fc-next-button').click( function(event) {
+										$.each(data, function (workstation_id) { 
+											if(workstation_id != (currentTab - 1)) calendars[workstation_id].next();  
+										});  
+									});
+									
+									$('.fc-prev-button').click( function(event) {
+										$.each(data, function (workstation_id) { 
+											if(workstation_id != (currentTab - 1)) calendars[workstation_id].prev();  
+										});  
+									});
+									
+									$('.fc-today-button').click( function(event) {
+										$.each(data, function (workstation_id) { 
+											if(workstation_id != (currentTab - 1)) calendars[workstation_id].today(); 
+										});  
+									});
+									
+									$('.fc-dayGridMonth-button').click( function(event) {
+										$.each(data, function (workstation_id) { 
+											if(workstation_id != (currentTab - 1)) calendars[workstation_id].changeView('dayGridMonth');  
+										});  
+									});
+									
+									$('.fc-timeGridWeek-button').click( function(event) {
+										$.each(data, function (workstation_id) { 
+											if(workstation_id != (currentTab - 1)) calendars[workstation_id].changeView('timeGridWeek');  
+										});  
+									});
+									
+									$('.fc-timeGridDay-button').click( function(event) {
+										$.each(data, function (workstation_id) { 
+											if(workstation_id != (currentTab - 1)) calendars[workstation_id].changeView('timeGridDay');  
+										});  
+									});
+								});   
+							});
+						} else {
+							$("input[name='password']").val("");
+							alert("Wrong password.")
+						}
+					}
+				});
+			}); 
+		}); 
+	</script> 
+</body>   
+</html>  							
